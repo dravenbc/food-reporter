@@ -75,9 +75,9 @@
 		// Add zoom control in top right
 		L.control.zoom({ position: 'topright' }).addTo(map);
 
-		const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+		const tiles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
 			maxZoom: 19,
-			attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+			attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
 		}).addTo(map);
 
 		// Load the GeoJSON file
@@ -93,8 +93,35 @@
 						// Construct the popup content
 						let popupContent = `<strong>${feature.properties.facility_name_inspection || 'No Name'}</strong><br/>`;
 
-						const inspectDate = feature.properties.inspect_dt || 'No Inspection Date';
+						let inspectDate = feature.properties.inspect_dt;
+
+						if (inspectDate) {
+						const dateObj = new Date(inspectDate);
+						inspectDate = dateObj.toLocaleDateString('en-US', {
+							year: 'numeric',
+							month: 'long',
+							day: 'numeric'
+						});
+						} else {
+						inspectDate = 'No Inspection Date';
+						}
+
 						popupContent += `<p><strong>Inspection Date:</strong> ${inspectDate}</p>`;
+
+						let severity = 'None';
+
+						const props = feature.properties;
+
+						if (props.high === 'T') {
+						severity = 'High';
+						} else if (props.medium === 'T') {
+						severity = 'Medium';
+						} else if (props.low === 'T') {
+						severity = 'Low';
+						}
+
+						popupContent += `<p><strong>Severity:</strong> ${severity}</p>`;
+
 
 						const desc = feature.properties.description_new || 'No Description';
 						popupContent += `<p><strong>Violation:</strong> ${desc}</p>`;

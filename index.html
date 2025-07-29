@@ -18,7 +18,7 @@
 	<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
 	<style>
-		html, body, #map {
+		html, body {
 			height: 100%;
 			width: 100%;
 			margin: 0;
@@ -30,117 +30,209 @@
 			width: 100%;
 		}
 
-		#map-header {
-			position: absolute;
-			top: 5%;
-			left: 20%;
-			transform: translateX(-50%);
-			z-index: 1000;
-			background: rgba(255, 255, 255, 0.8);
-			padding: 15px 25px;
-			border-radius: 10px;
-			box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-			max-width: 400px;
-		}
-
-		#map-header .title {
-			font-size: 2.5em;
+		#top-header {
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 30px;
+			background-color: #333;
+			color: white;
+			text-align: center;
+			padding: 10px 0;
+			font-size: 1.2em;
 			font-weight: bold;
-			margin-bottom: 10px;
+			z-index: 2000;
+			box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
 		}
 
-		#map-header .description {
-			font-size: 1em;
-			line-height: 1.4em;
+		body {
+			display: flex;
+			flex-direction: row;
+			height: 100%;
+		}
+
+		#sidebar {
+			width: 300px;
+			background-color: white;
+			padding: 20px;
+			box-shadow: 2px 0 5px rgba(0,0,0,0.2);
+			z-index: 1000;
+			overflow-y: auto;
+			transition: transform 0.3s ease;
+			margin-top: 50px; /* offset for fixed header */
+		}
+
+		.sidebar-content h1 {
+			margin-top: 0;
+			font-size: 1.8em;
+		}
+
+		#hamburger {
+			display: none;
+			position: fixed;
+			top: 10px;
+			left: 10px;
+			font-size: 2em;
+			background: rgba(255,255,255,0.9);
+			padding: 5px 10px;
+			border-radius: 5px;
+			cursor: pointer;
+			z-index: 2500;
+		}
+
+		#map {
+			flex: 1;
+			height: calc(100% - 50px); /* full height minus header */
+			margin-top: 50px; /* push below header */
+		}
+
+		#sidebar a {
+			color: #0077cc;
+			text-decoration: none;
+		}
+
+		#sidebar a:hover {
+			text-decoration: underline;
+		}
+
+		@media (max-width: 768px) {
+			body {
+				flex-direction: column;
+			}
+
+			#sidebar {
+				position: fixed;
+				top: 50px;
+				left: 0;
+				height: calc(100% - 50px);
+				transform: translateX(-100%);
+				margin-top: 0;
+			}
+
+			#sidebar.open {
+				transform: translateX(0);
+			}
+
+			#hamburger {
+				display: block;
+			}
 		}
 	</style>
 </head>
 
 <body>
-	<div id="map-header">
-		<div class="title">Food Reporter</div>
-		<div class="description">
-			***UNDER DEVELOPMENT*** Food safety violations reported in the past year by the Allegheny County Health Department. Click on a marker to view violation details and find links to full inspection reports. Last updated July 2025. Testing daily automated updates.
+	<div id="top-header">
+		<span>FoodReporter Web App - Beta Version</span>
+	</div>
+
+	<!-- Sidebar -->
+	<div id="sidebar">
+		<div class="sidebar-content">
+			<input type="text" id="search-box" placeholder="Search facilties..." style="width:80%; padding: 8px 12px 8px 8px; margin-bottom: 10px; font-size: 1em;">
+			<p><strong>UNDER DEVELOPMENT</strong></p>
+			<p>Food safety violations reported in the past year by the Allegheny County Health Department.</p>
+			<p>Click a marker to view details and find links to full inspection reports.</p>
+			<p>Data updated daily.</p>
+			<hr>
+			<p>
+				<a href="https://github.com/dravenbc/food-reporter" target="_blank">GitHub Repo</a> |
+				<a href="https://www.linkedin.com/in/draven-bechtel-clark-30b633176" target="_blank">Connect on LinkedIn</a>
+			</p>
 		</div>
 	</div>
 
+	<!-- Hamburger Menu (only visible on small screens) -->
+	<div id="hamburger">&#9776;</div>
+
 	<div id="map"></div>
 
-	<script>
-		// Disable default zoom control
-		const map = L.map('map', {
-			zoomControl: false
-		}).setView([40.4387, -79.9972], 10);
+<script>
+	// Disable default zoom control
+	const map = L.map('map', {
+		zoomControl: false
+	}).setView([40.4387, -79.9972], 10);
 
-		// Add zoom control in top right
-		L.control.zoom({ position: 'topright' }).addTo(map);
+	// Add zoom control in top right
+	L.control.zoom({ position: 'topright' }).addTo(map);
 
-		const tiles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-			maxZoom: 19,
-			attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
-		}).addTo(map);
+	const tiles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+		maxZoom: 19,
+		attribution: 'Tiles &copy; Esri'
+	}).addTo(map);
 
-		// Load the GeoJSON file
-		fetch('inspections.geojson')
-			.then(response => response.json())
-			.then(data => {
-				const markers = L.markerClusterGroup();
+	// START of new logic
+	let allFeatures = [];
+	let markers = L.markerClusterGroup();
+	let geoJsonLayer;
 
-				const geoJsonLayer = L.geoJSON(data, {
-					pointToLayer: function (feature, latlng) {
-						const marker = L.marker(latlng);
+	function renderMarkers(filteredFeatures) {
+		if (geoJsonLayer) {
+			markers.removeLayer(geoJsonLayer);
+		}
 
-						// Construct the popup content
-						let popupContent = `<strong>${feature.properties.facility_name_inspection || 'No Name'}</strong><br/>`;
+		geoJsonLayer = L.geoJSON(filteredFeatures, {
+			pointToLayer: function (feature, latlng) {
+				const marker = L.marker(latlng);
+				let popupContent = `<strong>${feature.properties.facility_name_inspection || 'No Name'}</strong><br/>`;
 
-						let inspectDate = feature.properties.inspect_dt;
+				let inspectDate = feature.properties.inspect_dt;
+				if (inspectDate) {
+					const dateObj = new Date(inspectDate);
+					inspectDate = dateObj.toLocaleDateString('en-US', {
+						year: 'numeric',
+						month: 'long',
+						day: 'numeric'
+					});
+				} else {
+					inspectDate = 'No Inspection Date';
+				}
+				popupContent += `<p><strong>Inspection Date:</strong> ${inspectDate}</p>`;
 
-						if (inspectDate) {
-						const dateObj = new Date(inspectDate);
-						inspectDate = dateObj.toLocaleDateString('en-US', {
-							year: 'numeric',
-							month: 'long',
-							day: 'numeric'
-						});
-						} else {
-						inspectDate = 'No Inspection Date';
-						}
+				let severity = 'None';
+				const props = feature.properties;
+				if (props.high === 'T') severity = 'High';
+				else if (props.medium === 'T') severity = 'Medium';
+				else if (props.low === 'T') severity = 'Low';
+				popupContent += `<p><strong>Severity:</strong> ${severity}</p>`;
 
-						popupContent += `<p><strong>Inspection Date:</strong> ${inspectDate}</p>`;
+				const desc = props.description_new || 'No Description';
+				popupContent += `<p><strong>Violation:</strong> ${desc}</p>`;
 
-						let severity = 'None';
+				const link = props.url || '';
+				if (link) popupContent += `<p><a href="${link}" target="_blank">View Report</a></p>`;
 
-						const props = feature.properties;
+				marker.bindPopup(popupContent);
+				return marker;
+			}
+		});
 
-						if (props.high === 'T') {
-						severity = 'High';
-						} else if (props.medium === 'T') {
-						severity = 'Medium';
-						} else if (props.low === 'T') {
-						severity = 'Low';
-						}
+		markers.addLayer(geoJsonLayer);
+	}
 
-						popupContent += `<p><strong>Severity:</strong> ${severity}</p>`;
+	fetch('inspections.geojson')
+		.then(response => response.json())
+		.then(data => {
+			allFeatures = data.features;
+			renderMarkers(allFeatures);
+			map.addLayer(markers);
+		})
+		.catch(error => {
+			console.error('Error loading the GeoJSON file:', error);
+		});
 
+	// 🔍 Live search filtering
+	document.getElementById('search-box').addEventListener('input', function () {
+		const searchTerm = this.value.toLowerCase();
 
-						const desc = feature.properties.description_new || 'No Description';
-						popupContent += `<p><strong>Violation:</strong> ${desc}</p>`;
+		const filtered = allFeatures.filter(feature => {
+			const name = feature.properties.facility_name_inspection || '';
+			return name.toLowerCase().includes(searchTerm);
+		});
 
-						const link = feature.properties.url || 'No Report';
-						popupContent += `<p><a href="${link}" target="_blank">View Report</a></p>`;
+		renderMarkers(filtered);
+	});
+</script>
 
-						marker.bindPopup(popupContent);
-
-						return marker;
-					}
-				});
-
-				markers.addLayer(geoJsonLayer);
-				map.addLayer(markers);
-			})
-			.catch(error => {
-				console.error('Error loading the GeoJSON file:', error);
-			});
-	</script>
 </body>
 </html>

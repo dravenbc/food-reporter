@@ -1,6 +1,5 @@
 planned improvements:
 -severity filtering
--mobile friendly formatting
+-fix sidebar button on mobile
 -bumping same-locations businesses out from each other
--automate data updates
--add search
+-improve search

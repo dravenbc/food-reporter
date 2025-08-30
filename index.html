@@ -6,13 +6,10 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<link rel="icon" type="image/png" href="logo.png">
 
-	
 	<title>FoodReporter</title>
 	
-	<link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />
-
-	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
 	<!-- Marker Cluster plugin -->
 	<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
@@ -53,14 +50,12 @@
 
 		.header-logo {
 			height: 50px;
-			width: 50px;        /* Make width equal height to form a square */
-			object-fit: cover;  /* Ensures image fills the box without distortion */
-			border-radius: 50%; /* This creates the circular crop */
-			overflow: hidden;   /* Just in case */
-			background-color: transparent; /* Good if your PNG has transparent areas */
+			width: 50px;
+			object-fit: cover;
+			border-radius: 50%;
+			overflow: hidden;
+			background-color: transparent;
 		}
-		
-
 
 		body {
 			display: flex;
@@ -86,8 +81,8 @@
 
 		#map {
 			flex: 1;
-			height: calc(100% - 50px); /* full height minus header */
-			margin-top: 50px; /* push below header */
+			height: calc(100% - 50px);
+			margin-top: 50px;
 		}
 
 		#sidebar a {
@@ -116,7 +111,6 @@
 			#sidebar.open {
 				transform: translateX(0);
 			}
-
 		}
 	</style>
 </head>
@@ -131,13 +125,25 @@
 	<!-- Sidebar -->
 	<div id="sidebar">
 		<div class="sidebar-content">
-			<input type="text" id="search-box" placeholder="Search facilties..." style="width:80%; padding: 8px 12px 8px 8px; margin-bottom: 10px; font-size: 1em;">
+			<input type="text" id="search-box" placeholder="Search facilities..." 
+			       style="width:80%; padding: 8px 12px 8px 8px; margin-bottom: 10px; font-size: 1em;">
 			
 			<div id="suggestions" style="position: relative;">
-				<ul id="suggestion-list" style="list-style: none; padding-left: 0; margin-top: 0; border: 1px solid #ccc; max-height: 150px; overflow-y: auto; background: white; display: none; position: absolute; z-index: 1000; width: 80%; font-size: 1em;"></ul>
+				<ul id="suggestion-list" 
+				    style="list-style: none; padding-left: 0; margin-top: 0; border: 1px solid #ccc; 
+				           max-height: 150px; overflow-y: auto; background: white; display: none; 
+				           position: absolute; z-index: 1000; width: 80%; font-size: 1em;">
+				</ul>
 			</div>
 
+			<hr>
+			<h3>Filter by Severity</h3>
+			<label><input type="checkbox" class="severity-filter" value="High" checked> High</label><br>
+			<label><input type="checkbox" class="severity-filter" value="Medium" checked> Medium</label><br>
+			<label><input type="checkbox" class="severity-filter" value="Low" checked> Low</label><br>
+			<label><input type="checkbox" class="severity-filter" value="None" checked> Other</label>
 
+			<hr>
 			<p><strong>UNDER DEVELOPMENT</strong></p>
 			<p>Food safety violations reported in the past year by the Allegheny County Health Department.</p>
 			<p>Click a marker to view details and find links to full inspection reports.</p>
@@ -147,20 +153,14 @@
 				<a href="https://github.com/dravenbc/food-reporter" target="_blank">GitHub Repo</a> |
 				<a href="https://www.linkedin.com/in/draven-bechtel-clark-30b633176" target="_blank">Connect on LinkedIn</a>
 			</p>
-
 		</div>
 	</div>
-
-	
 
 	<div id="map"></div>
 
 <script>
 	// Initialize map
-	const map = L.map('map', {
-		zoomControl: false
-	}).setView([40.4387, -79.9972], 10);
-
+	const map = L.map('map', { zoomControl: false }).setView([40.4387, -79.9972], 10);
 	L.control.zoom({ position: 'topright' }).addTo(map);
 
 	const tiles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
@@ -169,6 +169,7 @@
 	}).addTo(map);
 
 	let allFeatures = [];
+	// ✅ Default cluster style (no custom iconCreateFunction)
 	let markers = L.markerClusterGroup();
 	let geoJsonLayer;
 
@@ -178,8 +179,7 @@
 
 	// Normalize text
 	function normalize(str) {
-		return str
-			.toLowerCase()
+		return str.toLowerCase()
 			.replace(/[^a-z0-9\s]/gi, '')
 			.replace(/\s+/g, ' ')
 			.trim();
@@ -189,11 +189,15 @@
 	function fuzzyMatch(term, target) {
 		term = normalize(term);
 		target = normalize(target);
-
 		if (target.includes(term)) return true;
-
 		const termParts = term.split(' ');
 		return termParts.every(part => target.includes(part));
+	}
+
+	// Get active severity filters
+	function getActiveSeverities() {
+		return Array.from(document.querySelectorAll('.severity-filter:checked'))
+			.map(cb => cb.value);
 	}
 
 	// Render markers
@@ -202,12 +206,23 @@
 			markers.removeLayer(geoJsonLayer);
 		}
 
+		const activeSeverities = getActiveSeverities();
+
 		geoJsonLayer = L.geoJSON(filteredFeatures, {
 			pointToLayer: function (feature, latlng) {
-				const marker = L.marker(latlng);
-				let popupContent = `<strong>${feature.properties.facility_name_inspection || 'No Name'}</strong><br/>`;
+				// Severity
+				let severity = 'None';
+				const props = feature.properties;
+				if (props.high === 'T') severity = 'High';
+				else if (props.medium === 'T') severity = 'Medium';
+				else if (props.low === 'T') severity = 'Low';
 
-				let inspectDate = feature.properties.inspect_dt;
+				if (!activeSeverities.includes(severity)) return null;
+
+				const marker = L.marker(latlng);
+				let popupContent = `<strong>${props.facility_name_inspection || 'No Name'}</strong><br/>`;
+
+				let inspectDate = props.inspect_dt;
 				if (inspectDate) {
 					const dateObj = new Date(inspectDate);
 					inspectDate = dateObj.toLocaleDateString('en-US', {
@@ -219,19 +234,9 @@
 					inspectDate = 'No Inspection Date';
 				}
 				popupContent += `<p><strong>Inspection Date:</strong> ${inspectDate}</p>`;
-
-				let severity = 'None';
-				const props = feature.properties;
-				if (props.high === 'T') severity = 'High';
-				else if (props.medium === 'T') severity = 'Medium';
-				else if (props.low === 'T') severity = 'Low';
 				popupContent += `<p><strong>Severity:</strong> ${severity}</p>`;
-
-				const desc = props.description_new || 'No Description';
-				popupContent += `<p><strong>Violation:</strong> ${desc}</p>`;
-
-				const link = props.url || '';
-				if (link) popupContent += `<p><a href="${link}" target="_blank">View Report</a></p>`;
+				popupContent += `<p><strong>Violation:</strong> ${props.description_new || 'No Description'}</p>`;
+				if (props.url) popupContent += `<p><a href="${props.url}" target="_blank">View Report</a></p>`;
 
 				marker.bindPopup(popupContent);
 				return marker;
@@ -241,11 +246,11 @@
 		markers.addLayer(geoJsonLayer);
 	}
 
-	// Zoom to a feature's coordinates
+	// Zoom to a feature
 	function zoomToFeature(feature) {
 		const coords = feature.geometry.coordinates;
 		if (coords && coords.length === 2) {
-			map.setView([coords[1], coords[0]], 17); // GeoJSON is [lng, lat]
+			map.setView([coords[1], coords[0]], 17);
 		}
 	}
 
@@ -255,7 +260,6 @@
 			const name = feature.properties.facility_name_inspection || '';
 			return fuzzyMatch(searchTerm, name);
 		});
-
 		renderMarkers(filtered);
 
 		const suggestions = filtered
@@ -273,11 +277,9 @@
 				li.setAttribute('data-index', index);
 				li.style.padding = '5px 10px';
 				li.style.cursor = 'pointer';
-
 				li.addEventListener('mouseenter', () => setActive(index));
 				li.addEventListener('mouseleave', () => setActive(-1));
 				li.addEventListener('click', () => selectSuggestion(name));
-
 				suggestionList.appendChild(li);
 			});
 			suggestionList.style.display = 'block';
@@ -297,18 +299,11 @@
 	function selectSuggestion(name) {
 		searchBox.value = name;
 		suggestionList.style.display = 'none';
-
 		const selected = allFeatures.filter(f =>
 			normalize(f.properties.facility_name_inspection || '') === normalize(name)
 		);
-
 		renderMarkers(selected);
-
-		if (selected.length > 0) {
-			zoomToFeature(selected[0]);
-		}
-
-		// Trigger input event for consistency
+		if (selected.length > 0) zoomToFeature(selected[0]);
 		searchBox.dispatchEvent(new Event('input'));
 	}
 
@@ -316,18 +311,13 @@
 	searchBox.addEventListener('input', function () {
 		updateSuggestions(this.value);
 	});
-
 	searchBox.addEventListener('keydown', function (e) {
 		const items = suggestionList.querySelectorAll('li');
 		if (e.key === 'ArrowDown') {
-			if (activeIndex < items.length - 1) {
-				setActive(activeIndex + 1);
-			}
+			if (activeIndex < items.length - 1) setActive(activeIndex + 1);
 			e.preventDefault();
 		} else if (e.key === 'ArrowUp') {
-			if (activeIndex > 0) {
-				setActive(activeIndex - 1);
-			}
+			if (activeIndex > 0) setActive(activeIndex - 1);
 			e.preventDefault();
 		} else if (e.key === 'Enter') {
 			if (activeIndex >= 0) {
@@ -336,15 +326,18 @@
 			}
 		}
 	});
-
 	searchBox.addEventListener('blur', () => {
 		setTimeout(() => suggestionList.style.display = 'none', 150);
 	});
-
 	searchBox.addEventListener('focus', () => {
-		if (searchBox.value.trim() !== '') {
-			updateSuggestions(searchBox.value);
-		}
+		if (searchBox.value.trim() !== '') updateSuggestions(searchBox.value);
+	});
+
+	// Filter checkbox event
+	document.querySelectorAll('.severity-filter').forEach(cb => {
+		cb.addEventListener('change', () => {
+			updateSuggestions(searchBox.value); // rerun with current search
+		});
 	});
 
 	// Load GeoJSON
@@ -355,12 +348,7 @@
 			renderMarkers(allFeatures);
 			map.addLayer(markers);
 		})
-		.catch(error => {
-			console.error('Error loading the GeoJSON file:', error);
-		});
+		.catch(error => console.error('Error loading the GeoJSON file:', error));
 </script>
-
-
-
 </body>
 </html>
